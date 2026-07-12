@@ -15,14 +15,19 @@ import {
   ApiOkResponse,
   ApiParam,
 } from '@nestjs/swagger';
+import { NotificationGateway } from './notification.gateway';
 import { NotificationService } from './notification.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
+import { NotifyServiceDto } from './dto/notify-service.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
 
 @ApiTags('Notifications')
 @Controller('notifications')
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly notificationGateway: NotificationGateway,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -38,6 +43,26 @@ export class NotificationController {
     @Body() createNotificationDto: CreateNotificationDto,
   ): NotificationResponseDto {
     return this.notificationService.create(createNotificationDto);
+  }
+
+  @Post('service')
+  @ApiOperation({
+    summary: 'Notifier tout un service',
+    description:
+      'Envoie une notification en temps réel à tous les utilisateurs connectés d\'un service donné.',
+  })
+  notifyService(
+    @Body() dto: NotifyServiceDto,
+  ): { sent: boolean } {
+    this.notificationGateway.sendToService(dto.serviceId, {
+      title: dto.title,
+      message: dto.message,
+      type: dto.type ?? 'info',
+      source: dto.source ?? 'system',
+      data: dto.data ?? {},
+      createdAt: new Date(),
+    });
+    return { sent: true };
   }
 
   @Get()
