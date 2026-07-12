@@ -2,9 +2,11 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   ParseUUIDPipe,
+  HttpCode,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -89,5 +91,21 @@ export class NotificationController {
     @Param('id', ParseUUIDPipe) id: string,
   ): NotificationResponseDto {
     return this.notificationService.markAsRead(id);
+  }
+
+  @Delete('user/:userId')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Supprimer toutes les notifications',
+    description: 'Supprime toutes les notifications d\'un utilisateur.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'Identifiant unique de l\'utilisateur',
+  })
+  deleteAllByUser(
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ): void {
+    this.notificationService.deleteAllByUser(userId);
   }
 }

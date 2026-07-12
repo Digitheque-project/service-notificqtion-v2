@@ -50,4 +50,10 @@ export class NotificationService {
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
     );
   }
+
+  deleteAllByUser(userId: string): number {
+    const before = this.notifications.length;
+    this.notifications = this.notifications.filter((n) => n.userId !== userId);
+    return before - this.notifications.length;
+  }
 }

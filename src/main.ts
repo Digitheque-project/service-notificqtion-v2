@@ -19,13 +19,13 @@ async function bootstrap() {
     )
     .setVersion('1.0')
     .addTag('Notifications', 'Gestion des notifications en temps réel')
-    .addServer('http://localhost:3000', 'Serveur de développement')
+    .addServer('http://localhost:3005', 'Serveur de développement')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = process.env.PORT ?? 3000;
+  const port = process.env.PORT ?? 3005;
   await app.listen(port);
 
   logger.log(`Documentation Swagger : http://localhost:${port}/api/docs`);
