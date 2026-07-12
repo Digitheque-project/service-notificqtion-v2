@@ -23,6 +23,7 @@ export class NotificationGateway
 
   handleConnection(client: Socket) {
     const userId = client.handshake.query.userId as string;
+    const serviceId = client.handshake.query.serviceId as string;
     const userName = (client.handshake.query.userName as string) || '';
     const userFirstname = (client.handshake.query.userFirstname as string) || '';
 
@@ -31,6 +32,11 @@ export class NotificationGateway
       const displayName = [userFirstname, userName].filter(Boolean).join(' ') || userId;
       this.connectedUsers.set(userId, { name: userName, firstname: userFirstname });
       this.logger.log(`Connecté — ${displayName} (${userId}) [${this.connectedUsers.size} utilisateur(s) connecté(s)]`);
+    }
+
+    if (serviceId) {
+      client.join(`service:${serviceId}`);
+      this.logger.log(`Service room joint — service:${serviceId} pour ${userId || 'anonyme'}`);
     }
   }
 
@@ -45,11 +51,27 @@ export class NotificationGateway
       this.connectedUsers.delete(userId);
       this.logger.log(`Déconnecté — ${displayName} (${userId}) [${this.connectedUsers.size} utilisateur(s) restant(s)]`);
     }
+
+    const serviceId = client.handshake.query.serviceId as string;
+    if (serviceId) {
+      client.leave(`service:${serviceId}`);
+    }
   }
 
   @SubscribeMessage('subscribe')
   handleSubscribe(client: Socket, userId: string) {
     client.join(`user:${userId}`);
+  }
+
+  @SubscribeMessage('subscribeService')
+  handleSubscribeService(client: Socket, serviceId: string) {
+    client.join(`service:${serviceId}`);
+  }
+
+  sendToService(serviceId: string, notification: any) {
+    const room = `service:${serviceId}`;
+    this.logger.log(`Socket → ${room}: titre="${notification.title}"`);
+    this.server.to(room).emit('notification', notification);
   }
 
   sendNotification(userId: string, notification: any) {
