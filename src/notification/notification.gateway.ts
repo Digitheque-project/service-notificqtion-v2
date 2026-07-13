@@ -23,6 +23,7 @@ export class NotificationGateway
 
   handleConnection(client: Socket) {
     const userId = client.handshake.query.userId as string;
+    const role = client.handshake.query.role as string;
     const serviceId = client.handshake.query.serviceId as string;
     const userName = (client.handshake.query.userName as string) || '';
     const userFirstname = (client.handshake.query.userFirstname as string) || '';
@@ -34,6 +35,11 @@ export class NotificationGateway
       this.logger.log(`Connecté — ${displayName} (${userId}) [${this.connectedUsers.size} utilisateur(s) connecté(s)]`);
     }
 
+    if (role) {
+      client.join(`role:${role}`);
+      this.logger.log(`Role room joint — role:${role} pour ${userId || 'anonyme'}`);
+    }
+
     if (serviceId) {
       client.join(`service:${serviceId}`);
       this.logger.log(`Service room joint — service:${serviceId} pour ${userId || 'anonyme'}`);
@@ -42,6 +48,7 @@ export class NotificationGateway
 
   handleDisconnect(client: Socket) {
     const userId = client.handshake.query.userId as string;
+    const role = client.handshake.query.role as string;
     if (userId) {
       client.leave(`user:${userId}`);
       const user = this.connectedUsers.get(userId);
@@ -50,6 +57,10 @@ export class NotificationGateway
         : userId;
       this.connectedUsers.delete(userId);
       this.logger.log(`Déconnecté — ${displayName} (${userId}) [${this.connectedUsers.size} utilisateur(s) restant(s)]`);
+    }
+
+    if (role) {
+      client.leave(`role:${role}`);
     }
 
     const serviceId = client.handshake.query.serviceId as string;
@@ -70,6 +81,12 @@ export class NotificationGateway
 
   sendToService(serviceId: string, notification: any) {
     const room = `service:${serviceId}`;
+    this.logger.log(`Socket → ${room}: titre="${notification.title}"`);
+    this.server.to(room).emit('notification', notification);
+  }
+
+  sendToRole(role: string, notification: any) {
+    const room = `role:${role}`;
     this.logger.log(`Socket → ${room}: titre="${notification.title}"`);
     this.server.to(room).emit('notification', notification);
   }

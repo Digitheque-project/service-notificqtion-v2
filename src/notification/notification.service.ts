@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateNotificationDto } from './dto/create-notification.dto';
+import { BroadcastNotificationDto } from './dto/broadcast-notification.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
 import { NotificationGateway } from './notification.gateway';
 
@@ -51,10 +52,10 @@ export class NotificationService {
     );
   }
 
-  broadcast(dto: CreateNotificationDto): NotificationResponseDto {
+  broadcast(dto: BroadcastNotificationDto): NotificationResponseDto {
     const notification: NotificationResponseDto = {
       id: uuidv4(),
-      userId: dto.userId,
+      userId: 'broadcast',
       title: dto.title,
       message: dto.message,
       type: dto.type ?? 'info',

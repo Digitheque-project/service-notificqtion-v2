@@ -18,6 +18,7 @@ import {
 import { NotificationGateway } from './notification.gateway';
 import { NotificationService } from './notification.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
+import { BroadcastNotificationDto } from './dto/broadcast-notification.dto';
 import { NotifyServiceDto } from './dto/notify-service.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
 
@@ -75,9 +76,32 @@ export class NotificationController {
     description: 'Notification diffusée',
   })
   broadcast(
-    @Body() createNotificationDto: CreateNotificationDto,
+    @Body() dto: BroadcastNotificationDto,
   ): NotificationResponseDto {
-    return this.notificationService.broadcast(createNotificationDto);
+    return this.notificationService.broadcast(dto);
+  }
+
+  @Post('broadcast/role/:roleName')
+  @ApiOperation({
+    summary: 'Diffuser une notification à un rôle',
+    description: 'Diffuse une notification en temps réel à tous les utilisateurs connectés ayant un rôle donné.',
+  })
+  broadcastToRole(
+    @Param('roleName') roleName: string,
+    @Body() dto: BroadcastNotificationDto,
+  ): { sent: boolean } {
+    this.notificationGateway.sendToRole(roleName, {
+      id: crypto.randomUUID(),
+      userId: 'broadcast',
+      title: dto.title,
+      message: dto.message,
+      type: dto.type ?? 'info',
+      source: dto.source ?? 'system',
+      data: dto.data,
+      createdAt: new Date(),
+      read: false,
+    });
+    return { sent: true };
   }
 
   @Get()
