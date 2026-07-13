@@ -65,6 +65,21 @@ export class NotificationController {
     return { sent: true };
   }
 
+  @Post('broadcast')
+  @ApiOperation({
+    summary: 'Diffuser une notification à tous',
+    description: 'Diffuse une notification en temps réel à tous les utilisateurs connectés via WebSocket.',
+  })
+  @ApiCreatedResponse({
+    type: NotificationResponseDto,
+    description: 'Notification diffusée',
+  })
+  broadcast(
+    @Body() createNotificationDto: CreateNotificationDto,
+  ): NotificationResponseDto {
+    return this.notificationService.broadcast(createNotificationDto);
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Lister toutes les notifications',

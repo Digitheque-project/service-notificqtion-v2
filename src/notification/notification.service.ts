@@ -51,6 +51,25 @@ export class NotificationService {
     );
   }
 
+  broadcast(dto: CreateNotificationDto): NotificationResponseDto {
+    const notification: NotificationResponseDto = {
+      id: uuidv4(),
+      userId: dto.userId,
+      title: dto.title,
+      message: dto.message,
+      type: dto.type ?? 'info',
+      source: dto.source ?? 'system',
+      data: dto.data,
+      createdAt: new Date(),
+      read: false,
+    };
+
+    this.notifications.push(notification);
+    this.notificationGateway.broadcastNotification(notification);
+
+    return notification;
+  }
+
   deleteAllByUser(userId: string): number {
     const before = this.notifications.length;
     this.notifications = this.notifications.filter((n) => n.userId !== userId);
