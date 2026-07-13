@@ -32,7 +32,7 @@ export class NotificationGateway
       client.join(`user:${userId}`);
       const displayName = [userFirstname, userName].filter(Boolean).join(' ') || userId;
       this.connectedUsers.set(userId, { name: userName, firstname: userFirstname });
-      this.logger.log(`Connecté — ${displayName} (${userId}) [${this.connectedUsers.size} utilisateur(s) connecté(s)]`);
+      this.logger.log(`🟢 — ${displayName} (${userId}) [${this.connectedUsers.size} user(s) 🟢]`);
     }
 
     if (role) {
@@ -56,7 +56,7 @@ export class NotificationGateway
         ? [user.firstname, user.name].filter(Boolean).join(' ') || userId
         : userId;
       this.connectedUsers.delete(userId);
-      this.logger.log(`Déconnecté — ${displayName} (${userId}) [${this.connectedUsers.size} utilisateur(s) restant(s)]`);
+      this.logger.log(`🔴 — ${displayName} (${userId}) [${this.connectedUsers.size} user(s) 🟢]`);
     }
 
     if (role) {
