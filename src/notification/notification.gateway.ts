@@ -36,8 +36,8 @@ export class NotificationGateway
     }
 
     if (role) {
-      client.join(`role:${role}`);
-      this.logger.log(`Role room joint — role:${role} pour ${userId || 'anonyme'}`);
+      client.join(`role:${role.toLowerCase()}`);
+      this.logger.log(`Role room joint — role:${role.toLowerCase()} pour ${userId || 'anonyme'}`);
     }
 
     if (serviceId) {
@@ -60,7 +60,7 @@ export class NotificationGateway
     }
 
     if (role) {
-      client.leave(`role:${role}`);
+      client.leave(`role:${role.toLowerCase()}`);
     }
 
     const serviceId = client.handshake.query.serviceId as string;
@@ -86,7 +86,7 @@ export class NotificationGateway
   }
 
   sendToRole(role: string, notification: any) {
-    const room = `role:${role}`;
+    const room = `role:${role.toLowerCase()}`;
     this.logger.log(`Socket → ${room}: titre="${notification.title}"`);
     this.server.to(room).emit('notification', notification);
   }
