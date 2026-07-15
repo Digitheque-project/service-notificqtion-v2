@@ -132,7 +132,7 @@ export class NotificationController {
     description: 'Notifications de l\'utilisateur',
   })
   findByUser(
-    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('userId') userId: string,
   ): NotificationResponseDto[] {
     return this.notificationService.findByUser(userId);
   }
