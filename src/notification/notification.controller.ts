@@ -89,19 +89,8 @@ export class NotificationController {
   broadcastToRole(
     @Param('roleName') roleName: string,
     @Body() dto: BroadcastNotificationDto,
-  ): { sent: boolean } {
-    this.notificationGateway.sendToRole(roleName, {
-      id: crypto.randomUUID(),
-      userId: 'broadcast',
-      title: dto.title,
-      message: dto.message,
-      type: dto.type ?? 'info',
-      source: dto.source ?? 'system',
-      data: dto.data,
-      createdAt: new Date(),
-      read: false,
-    });
-    return { sent: true };
+  ): NotificationResponseDto {
+    return this.notificationService.broadcastToRole(roleName, dto);
   }
 
   @Get()

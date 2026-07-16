@@ -33,7 +33,7 @@ export class NotificationService {
 
   findByUser(userId: string): NotificationResponseDto[] {
     return this.notifications
-      .filter((n) => n.userId === userId)
+      .filter((n) => n.userId === userId || n.userId === 'broadcast')
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
@@ -67,6 +67,25 @@ export class NotificationService {
 
     this.notifications.push(notification);
     this.notificationGateway.broadcastNotification(notification);
+
+    return notification;
+  }
+
+  broadcastToRole(roleName: string, dto: BroadcastNotificationDto): NotificationResponseDto {
+    const notification: NotificationResponseDto = {
+      id: uuidv4(),
+      userId: 'broadcast',
+      title: dto.title,
+      message: dto.message,
+      type: dto.type ?? 'info',
+      source: dto.source ?? 'system',
+      data: dto.data,
+      createdAt: new Date(),
+      read: false,
+    };
+
+    this.notifications.push(notification);
+    this.notificationGateway.sendToRole(roleName, notification);
 
     return notification;
   }
