@@ -44,6 +44,12 @@ export class NotificationGateway
       client.join(`service:${serviceId}`);
       this.logger.log(`Service room joint — service:${serviceId} pour ${userId || 'anonyme'}`);
     }
+
+    if (role && serviceId) {
+      const composite = `role:${role.toLowerCase()}:service:${serviceId}`;
+      client.join(composite);
+      this.logger.log(`Composite room joint — ${composite} pour ${userId || 'anonyme'}`);
+    }
   }
 
   handleDisconnect(client: Socket) {
@@ -67,6 +73,10 @@ export class NotificationGateway
     if (serviceId) {
       client.leave(`service:${serviceId}`);
     }
+
+    if (role && serviceId) {
+      client.leave(`role:${role.toLowerCase()}:service:${serviceId}`);
+    }
   }
 
   @SubscribeMessage('subscribe')
@@ -87,6 +97,12 @@ export class NotificationGateway
 
   sendToRole(role: string, notification: any) {
     const room = `role:${role.toLowerCase()}`;
+    this.logger.log(`Socket → ${room}: titre="${notification.title}"`);
+    this.server.to(room).emit('notification', notification);
+  }
+
+  sendToRoleAndService(role: string, serviceId: string, notification: any) {
+    const room = `role:${role.toLowerCase()}:service:${serviceId}`;
     this.logger.log(`Socket → ${room}: titre="${notification.title}"`);
     this.server.to(room).emit('notification', notification);
   }

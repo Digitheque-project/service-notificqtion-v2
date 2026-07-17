@@ -5,6 +5,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
   HttpCode,
 } from '@nestjs/common';
@@ -93,6 +94,19 @@ export class NotificationController {
     return this.notificationService.broadcastToRole(roleName, dto);
   }
 
+  @Post('broadcast/role-service/:roleName/:serviceId')
+  @ApiOperation({
+    summary: 'Diffuser une notification à un rôle dans un service',
+    description: 'Diffuse une notification en temps réel aux utilisateurs connectés ayant un rôle donné ET appartenant à un service donné.',
+  })
+  broadcastToRoleAndService(
+    @Param('roleName') roleName: string,
+    @Param('serviceId') serviceId: string,
+    @Body() dto: BroadcastNotificationDto,
+  ): NotificationResponseDto {
+    return this.notificationService.broadcastToRoleAndService(roleName, serviceId, dto);
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Lister toutes les notifications',
@@ -109,7 +123,7 @@ export class NotificationController {
   @Get('user/:userId')
   @ApiOperation({
     summary: 'Notifications d\'un utilisateur',
-    description: 'Retourne toutes les notifications d\'un utilisateur spécifique.',
+    description: 'Retourne toutes les notifications d\'un utilisateur spécifique. Optionnellement filtrer par role et serviceId pour les notifications broadcast ciblées.',
   })
   @ApiParam({
     name: 'userId',
@@ -122,8 +136,10 @@ export class NotificationController {
   })
   findByUser(
     @Param('userId') userId: string,
+    @Query('role') role?: string,
+    @Query('serviceId') serviceId?: string,
   ): NotificationResponseDto[] {
-    return this.notificationService.findByUser(userId);
+    return this.notificationService.findByUser(userId, role, serviceId);
   }
 
   @Post(':id/read')

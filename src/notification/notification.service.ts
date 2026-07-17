@@ -31,9 +31,17 @@ export class NotificationService {
     return notification;
   }
 
-  findByUser(userId: string): NotificationResponseDto[] {
+  findByUser(userId: string, role?: string, serviceId?: string): NotificationResponseDto[] {
+    const compositeKey = role && serviceId
+      ? `broadcast:role:${role.toLowerCase()}:service:${serviceId}`
+      : null;
+
     return this.notifications
-      .filter((n) => n.userId === userId || n.userId === 'broadcast')
+      .filter((n) =>
+        n.userId === userId ||
+        n.userId === 'broadcast' ||
+        (compositeKey && n.userId === compositeKey)
+      )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
@@ -86,6 +94,25 @@ export class NotificationService {
 
     this.notifications.push(notification);
     this.notificationGateway.sendToRole(roleName, notification);
+
+    return notification;
+  }
+
+  broadcastToRoleAndService(roleName: string, serviceId: string, dto: BroadcastNotificationDto): NotificationResponseDto {
+    const notification: NotificationResponseDto = {
+      id: uuidv4(),
+      userId: `broadcast:role:${roleName.toLowerCase()}:service:${serviceId}`,
+      title: dto.title,
+      message: dto.message,
+      type: dto.type ?? 'info',
+      source: dto.source ?? 'system',
+      data: { ...dto.data, serviceId },
+      createdAt: new Date(),
+      read: false,
+    };
+
+    this.notifications.push(notification);
+    this.notificationGateway.sendToRoleAndService(roleName, serviceId, notification);
 
     return notification;
   }
