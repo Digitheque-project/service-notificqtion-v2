@@ -40,4 +40,13 @@ export class BroadcastNotificationDto {
   })
   @IsOptional()
   data?: Record<string, any>;
+
+  @ApiPropertyOptional({
+    description: 'Priorité de la notification',
+    enum: ['normal', 'urgent', 'critical'],
+    default: 'normal',
+  })
+  @IsString()
+  @IsOptional()
+  priority?: string;
 }

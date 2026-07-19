@@ -27,4 +27,7 @@ export class NotificationResponseDto {
 
   @ApiProperty({ description: 'Notification lue', example: false })
   read: boolean;
+
+  @ApiProperty({ description: 'Priorité', enum: ['normal', 'urgent', 'critical'], default: 'normal' })
+  priority: string;
 }

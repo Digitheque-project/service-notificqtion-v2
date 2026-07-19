@@ -22,6 +22,7 @@ export class NotificationService {
       data: dto.data,
       createdAt: new Date(),
       read: false,
+      priority: 'normal',
     };
 
     this.notifications.push(notification);
@@ -71,6 +72,7 @@ export class NotificationService {
       data: dto.data,
       createdAt: new Date(),
       read: false,
+      priority: dto.priority ?? 'normal',
     };
 
     this.notifications.push(notification);
@@ -90,6 +92,7 @@ export class NotificationService {
       data: dto.data,
       createdAt: new Date(),
       read: false,
+      priority: dto.priority ?? 'normal',
     };
 
     this.notifications.push(notification);
@@ -109,6 +112,7 @@ export class NotificationService {
       data: { ...dto.data, serviceId },
       createdAt: new Date(),
       read: false,
+      priority: dto.priority ?? 'normal',
     };
 
     this.notifications.push(notification);
