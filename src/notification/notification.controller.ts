@@ -22,6 +22,12 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 import { BroadcastNotificationDto } from './dto/broadcast-notification.dto';
 import { NotifyServiceDto } from './dto/notify-service.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
+import {
+  MarkAllReadDto,
+  MarkManyReadDto,
+  MarkReadDto,
+  MarkReadResultDto,
+} from './dto/mark-read.dto';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -123,7 +129,7 @@ export class NotificationController {
   @Get('user/:userId')
   @ApiOperation({
     summary: 'Notifications d\'un utilisateur',
-    description: 'Retourne toutes les notifications d\'un utilisateur spécifique. Optionnellement filtrer par role et serviceId pour les notifications broadcast ciblées.',
+    description: 'Retourne toutes les notifications d\'un utilisateur spécifique. Optionnellement filtrer par role et serviceId pour les notifications broadcast ciblées. Le champ `read` est résolu POUR CET UTILISATEUR : une notification diffusée reste non lue pour les collègues qui ne l\'ont pas ouverte.',
   })
   @ApiParam({
     name: 'userId',
@@ -142,10 +148,58 @@ export class NotificationController {
     return this.notificationService.findByUser(userId, role, serviceId);
   }
 
+  @Post('read')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Marquer plusieurs notifications comme lues',
+    description:
+      'Accuse de lecture GROUPE : un seul appel pour toute une liste. ' +
+      'Si userId est fourni, l\'accusé est PERSONNEL (les autres destinataires ' +
+      'd\'une notification diffusée à un rôle/service gardent leur indice). ' +
+      'Les identifiants inconnus (notifications purgées) sont ignorés.',
+  })
+  @ApiOkResponse({
+    type: MarkReadResultDto,
+    description: 'Nombre de notifications marquées comme lues',
+  })
+  markManyAsRead(@Body() dto: MarkManyReadDto): MarkReadResultDto {
+    return this.notificationService.markManyAsRead(dto.ids, dto.userId);
+  }
+
+  @Post('user/:userId/read-all')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Tout marquer comme lu',
+    description:
+      'Marque comme lues toutes les notifications visibles par un utilisateur ' +
+      '(y compris celles diffusées à son rôle et à son service).',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'Identifiant unique de l\'utilisateur',
+  })
+  @ApiOkResponse({
+    type: MarkReadResultDto,
+    description: 'Nombre de notifications marquées comme lues',
+  })
+  markAllAsRead(
+    @Param('userId') userId: string,
+    @Body() dto: MarkAllReadDto,
+  ): { updated: number } {
+    return this.notificationService.markAllAsRead(
+      userId,
+      dto?.role,
+      dto?.serviceId,
+    );
+  }
+
   @Post(':id/read')
   @ApiOperation({
     summary: 'Marquer comme lue',
-    description: 'Marque une notification comme lue par son identifiant.',
+    description:
+      'Marque une notification comme lue par son identifiant. Transmettre ' +
+      'userId dans le corps pour un accusé de lecture PERSONNEL (recommandé ' +
+      'pour les notifications diffusées à un rôle/service).',
   })
   @ApiParam({
     name: 'id',
@@ -158,8 +212,9 @@ export class NotificationController {
   })
   markAsRead(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MarkReadDto,
   ): NotificationResponseDto {
-    return this.notificationService.markAsRead(id);
+    return this.notificationService.markAsRead(id, dto?.userId);
   }
 
   @Delete('user/:userId')
