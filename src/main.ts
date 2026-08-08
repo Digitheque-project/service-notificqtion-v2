@@ -23,11 +23,11 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('notification/api/docs', app, document);
 
   const port = process.env.PORT ?? 3005;
   await app.listen(port);
 
-  logger.log(`Documentation Swagger : http://localhost:${port}/api/docs`);
+  logger.log(`Documentation Swagger : http://localhost:${port}/notification/api/docs`);
 }
 bootstrap();
