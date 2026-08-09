@@ -8,6 +8,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { BroadcastNotificationDto } from './dto/broadcast-notification.dto';
+import { NotifyServiceDto } from './dto/notify-service.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
 import { NotificationGateway } from './notification.gateway';
 import {
@@ -134,6 +135,36 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     return this.versReponse(notification);
   }
 
+  /**
+   * Notifie tout un service ET persiste la notification.
+   *
+   * Avant cette correction, le controleur appelait directement la gateway,
+   * sans rien enregistrer : une notification de service etait perdue si
+   * personne n'etait connecte a l'instant de l'emission, et l'indice (badge)
+   * ne revenait jamais apres un rafraichissement. Elle est desormais stockee
+   * sous la cle `broadcast:service:{serviceId}` et relue par
+   * findByUser(userId, role, serviceId).
+   */
+  notifyService(dto: NotifyServiceDto): NotificationResponseDto {
+    const notification = this.construire({
+      userId: `broadcast:service:${dto.serviceId}`,
+      title: dto.title,
+      message: dto.message,
+      type: dto.type ?? 'info',
+      source: dto.source ?? 'system',
+      data: { ...dto.data, serviceId: dto.serviceId },
+      priority: 'normal',
+    });
+
+    this.ajouter(notification);
+    this.notificationGateway.sendToService(
+      dto.serviceId,
+      this.versReponse(notification),
+    );
+
+    return this.versReponse(notification);
+  }
+
   // ------------------------------------------------------------------- lecture
 
   /**
@@ -152,13 +183,17 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
       role && serviceId
         ? `broadcast:role:${role.toLowerCase()}:service:${serviceId}`
         : null;
+    // Notifications diffusees a tout un service (POST /notifications/service),
+    // persistees sous la cle `broadcast:service:{serviceId}`.
+    const serviceKey = serviceId ? `broadcast:service:${serviceId}` : null;
 
     return this.notifications
       .filter(
         (n) =>
           n.userId === userId ||
           n.userId === 'broadcast' ||
-          (compositeKey && n.userId === compositeKey),
+          (compositeKey && n.userId === compositeKey) ||
+          (serviceKey && n.userId === serviceKey),
       )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((n) => this.versReponse(n, userId));

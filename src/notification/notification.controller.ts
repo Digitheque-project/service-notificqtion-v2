@@ -16,7 +16,6 @@ import {
   ApiOkResponse,
   ApiParam,
 } from '@nestjs/swagger';
-import { NotificationGateway } from './notification.gateway';
 import { NotificationService } from './notification.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { BroadcastNotificationDto } from './dto/broadcast-notification.dto';
@@ -32,10 +31,7 @@ import {
 @ApiTags('Notifications')
 @Controller('notifications')
 export class NotificationController {
-  constructor(
-    private readonly notificationService: NotificationService,
-    private readonly notificationGateway: NotificationGateway,
-  ) {}
+  constructor(private readonly notificationService: NotificationService) {}
 
   @Post()
   @ApiOperation({
@@ -62,14 +58,9 @@ export class NotificationController {
   notifyService(
     @Body() dto: NotifyServiceDto,
   ): { sent: boolean } {
-    this.notificationGateway.sendToService(dto.serviceId, {
-      title: dto.title,
-      message: dto.message,
-      type: dto.type ?? 'info',
-      source: dto.source ?? 'system',
-      data: dto.data ?? {},
-      createdAt: new Date(),
-    });
+    // Persiste PUIS diffuse : la notification survit desormais au
+    // rafraichissement (indice recharge via GET /notifications/user/:userId).
+    this.notificationService.notifyService(dto);
     return { sent: true };
   }
 
