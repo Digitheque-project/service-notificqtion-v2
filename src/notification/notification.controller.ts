@@ -55,9 +55,9 @@ export class NotificationController {
     type: NotificationResponseDto,
     description: 'Notification créée et diffusée',
   })
-  create(
+  async create(
     @Body() createNotificationDto: CreateNotificationDto,
-  ): NotificationResponseDto {
+  ): Promise<NotificationResponseDto> {
     return this.notificationService.create(createNotificationDto);
   }
 
@@ -67,10 +67,12 @@ export class NotificationController {
     description:
       "Envoie une notification en temps réel à tous les utilisateurs connectés d'un service donné.",
   })
-  notifyService(@Body() dto: NotifyServiceDto): { sent: boolean } {
+  async notifyService(
+    @Body() dto: NotifyServiceDto,
+  ): Promise<{ sent: boolean }> {
     // Persiste PUIS diffuse : la notification survit desormais au
     // rafraichissement (indice recharge via GET /notifications/user/:userId).
-    this.notificationService.notifyService(dto);
+    await this.notificationService.notifyService(dto);
     return { sent: true };
   }
 
@@ -84,10 +86,10 @@ export class NotificationController {
     type: NotificationResponseDto,
     description: 'Notification diffusée',
   })
-  broadcast(
+  async broadcast(
     @Req() req: RequeteAuthentifiee,
     @Body() dto: BroadcastNotificationDto,
-  ): NotificationResponseDto {
+  ): Promise<NotificationResponseDto> {
     // Atteint TOUS les utilisateurs de tous les CHU : jamais depuis un navigateur.
     exigerService(req.identite);
     return this.notificationService.broadcast(dto);
@@ -99,11 +101,11 @@ export class NotificationController {
     description:
       'Diffuse une notification en temps réel à tous les utilisateurs connectés ayant un rôle donné.',
   })
-  broadcastToRole(
+  async broadcastToRole(
     @Req() req: RequeteAuthentifiee,
     @Param('roleName') roleName: string,
     @Body() dto: BroadcastNotificationDto,
-  ): NotificationResponseDto {
+  ): Promise<NotificationResponseDto> {
     // Un rôle de TOUTE la plateforme (tous services, tous CHU) : services seulement.
     exigerService(req.identite);
     return this.notificationService.broadcastToRole(roleName, dto);
@@ -115,11 +117,11 @@ export class NotificationController {
     description:
       'Diffuse une notification en temps réel aux utilisateurs connectés ayant un rôle donné ET appartenant à un service donné.',
   })
-  broadcastToRoleAndService(
+  async broadcastToRoleAndService(
     @Param('roleName') roleName: string,
     @Param('serviceId') serviceId: string,
     @Body() dto: BroadcastNotificationDto,
-  ): NotificationResponseDto {
+  ): Promise<NotificationResponseDto> {
     return this.notificationService.broadcastToRoleAndService(
       roleName,
       serviceId,
@@ -137,7 +139,9 @@ export class NotificationController {
     type: [NotificationResponseDto],
     description: 'Liste de toutes les notifications',
   })
-  findAll(@Req() req: RequeteAuthentifiee): NotificationResponseDto[] {
+  async findAll(
+    @Req() req: RequeteAuthentifiee,
+  ): Promise<NotificationResponseDto[]> {
     // Un utilisateur ne reçoit que SES notifications (lui, ses services, ses rôles) :
     // jamais celles des autres services ni des autres CHU.
     if (!req.identite.estService) return this.lecturesDe(req.identite);
@@ -159,12 +163,12 @@ export class NotificationController {
     type: [NotificationResponseDto],
     description: "Notifications de l'utilisateur",
   })
-  findByUser(
+  async findByUser(
     @Req() req: RequeteAuthentifiee,
     @Param('userId') userId: string,
     @Query('role') role?: string,
     @Query('serviceId') serviceId?: string,
-  ): NotificationResponseDto[] {
+  ): Promise<NotificationResponseDto[]> {
     const { identite } = req;
     if (identite.estService) {
       return this.notificationService.findByUser(userId, role, serviceId);
@@ -181,17 +185,21 @@ export class NotificationController {
   }
 
   /** Notifications visibles par un utilisateur, pour chacun de ses services. */
-  private lecturesDe(identite: Identite): NotificationResponseDto[] {
+  private async lecturesDe(
+    identite: Identite,
+  ): Promise<NotificationResponseDto[]> {
     const parId = new Map<string, NotificationResponseDto>();
-    const sources = identite.services.length
-      ? identite.services.map((s) =>
-          this.notificationService.findByUser(
-            identite.userId,
-            s.roleName,
-            s.serviceId,
-          ),
-        )
-      : [this.notificationService.findByUser(identite.userId)];
+    const sources = await Promise.all(
+      identite.services.length
+        ? identite.services.map((s) =>
+            this.notificationService.findByUser(
+              identite.userId,
+              s.roleName,
+              s.serviceId,
+            ),
+          )
+        : [this.notificationService.findByUser(identite.userId)],
+    );
     for (const liste of sources) for (const n of liste) parId.set(n.id, n);
     return [...parId.values()].sort(
       (a, b) =>
@@ -213,10 +221,10 @@ export class NotificationController {
     type: MarkReadResultDto,
     description: 'Nombre de notifications marquées comme lues',
   })
-  markManyAsRead(
+  async markManyAsRead(
     @Req() req: RequeteAuthentifiee,
     @Body() dto: MarkManyReadDto,
-  ): MarkReadResultDto {
+  ): Promise<MarkReadResultDto> {
     // Accusé PERSONNEL de l'utilisateur du jeton (jamais pour tout le monde).
     const userId = req.identite.estService ? dto.userId : req.identite.userId;
     return this.notificationService.markManyAsRead(dto.ids, userId);
@@ -238,11 +246,11 @@ export class NotificationController {
     type: MarkReadResultDto,
     description: 'Nombre de notifications marquées comme lues',
   })
-  markAllAsRead(
+  async markAllAsRead(
     @Req() req: RequeteAuthentifiee,
     @Param('userId') userId: string,
     @Body() dto: MarkAllReadDto,
-  ): { updated: number } {
+  ): Promise<{ updated: number }> {
     const { identite } = req;
     if (identite.estService) {
       return this.notificationService.markAllAsRead(
@@ -278,11 +286,11 @@ export class NotificationController {
     type: NotificationResponseDto,
     description: 'Notification marquée comme lue',
   })
-  markAsRead(
+  async markAsRead(
     @Req() req: RequeteAuthentifiee,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: MarkReadDto,
-  ): NotificationResponseDto {
+  ): Promise<NotificationResponseDto> {
     const userId = req.identite.estService ? dto?.userId : req.identite.userId;
     return this.notificationService.markAsRead(id, userId);
   }
@@ -297,13 +305,13 @@ export class NotificationController {
     name: 'userId',
     description: "Identifiant unique de l'utilisateur",
   })
-  deleteAllByUser(
+  async deleteAllByUser(
     @Req() req: RequeteAuthentifiee,
     @Param('userId', ParseUUIDPipe) userId: string,
-  ): void {
+  ): Promise<void> {
     if (!req.identite.estService && userId !== req.identite.userId) {
       throw new ForbiddenException('Seulement vos propres notifications');
     }
-    this.notificationService.deleteAllByUser(userId);
+    await this.notificationService.deleteAllByUser(userId);
   }
 }

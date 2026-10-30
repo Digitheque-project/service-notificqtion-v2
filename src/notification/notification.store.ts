@@ -1,24 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
 import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from 'fs';
-import { dirname, isAbsolute, resolve } from 'path';
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
+import { Pool } from 'pg';
 
-/**
- * Notification telle qu'elle est CONSERVEE sur disque.
- *
- * Difference avec NotificationResponseDto : on garde `readBy`, la liste des
- * utilisateurs ayant lu la notification. C'est indispensable pour les
- * notifications diffusees a un role + service (une seule entree partagee par
- * toute l'equipe) : sans cela, le premier infirmier qui ouvre le panneau
- * faisait disparaitre l'indice pour TOUS ses collegues.
- */
+/** Notification telle qu'elle est conservée en base. */
 export interface StoredNotification {
   id: string;
+  /** Destinataire : un utilisateur, ou une clé de diffusion (broadcast:service:…). */
   userId: string;
   title: string;
   message: string;
@@ -26,139 +17,210 @@ export interface StoredNotification {
   source: string;
   data?: Record<string, any>;
   createdAt: Date;
-  /**
-   * Etat de lecture "global", conserve pour compatibilite avec les appels qui
-   * ne transmettent pas d'utilisateur (destinataire unique).
-   */
+  /** Lue : par son destinataire unique, ou (lecture) par l'utilisateur demandeur. */
   read: boolean;
-  /** Utilisateurs ayant lu cette notification. */
-  readBy: string[];
   priority: string;
 }
 
-/** Emplacement du fichier de persistance (surchargeable par variable d'env). */
-const FICHIER_PAR_DEFAUT = 'data/notifications.json';
-/** Les ecritures sont regroupees : une rafale de notifications = une ecriture. */
-const DELAI_ECRITURE_MS = 300;
+/** Ligne de la table, `lu` déjà résolu pour l'utilisateur demandeur. */
+type Ligne = {
+  id: string;
+  destinataire: string;
+  titre: string;
+  message: string;
+  type: string;
+  source: string;
+  donnees: Record<string, any> | null;
+  priorite: string;
+  cree_le: Date;
+  lu: boolean;
+};
+
+/** Plafond par lecture : au-delà, les plus anciennes restent en base sans être renvoyées. */
+const LIMITE_LECTURE = 500;
 
 /**
- * Persistance FICHIER des notifications.
+ * Persistance des notifications dans PostgreSQL (schéma `notification`).
  *
- * Le service conservait tout dans un simple tableau en memoire : le moindre
- * redemarrage effacait les notifications ET les accuses de lecture, ce qui
- * faisait reapparaitre l'indice "non lues" cote front. On serialise donc l'etat
- * dans un fichier JSON, ecrit de facon atomique (fichier temporaire + rename)
- * pour ne jamais laisser un fichier tronque derriere soi.
- *
- * Aucune dependance supplementaire n'est requise : si un vrai SGBD est ajoute
- * plus tard, seule cette classe est a remplacer.
+ * Remplace le fichier JSON (effacé à chaque redémarrage sur Render, et rechargé en
+ * entier en mémoire) : chaque lecture est une requête ciblée et indexée par
+ * destinataire et par date, pour tenir des années d'historique. Les accusés de lecture
+ * des notifications diffusées (service, rôle) sont personnels : table `lectures`.
  */
 @Injectable()
-export class NotificationStore {
+export class NotificationStore implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NotificationStore.name);
-  private readonly fichier: string;
-  private minuterie: NodeJS.Timeout | null = null;
-  private enAttente: StoredNotification[] | null = null;
+  private readonly pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 5,
+    idleTimeoutMillis: 30_000,
+    ssl: /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL ?? '')
+      ? undefined
+      : { rejectUnauthorized: false },
+  });
 
-  constructor() {
-    const configure =
-      process.env.NOTIFICATION_STORE_FILE?.trim() || FICHIER_PAR_DEFAUT;
-    this.fichier = isAbsolute(configure)
-      ? configure
-      : resolve(process.cwd(), configure);
-  }
-
-  /** Chemin reel du fichier utilise (journalise au demarrage). */
-  get chemin(): string {
-    return this.fichier;
-  }
-
-  /** Relit l'etat persiste. Retourne une liste vide si le fichier est absent. */
-  charger(): StoredNotification[] {
-    try {
-      if (!existsSync(this.fichier)) return [];
-      const brut = readFileSync(this.fichier, 'utf8');
-      if (!brut.trim()) return [];
-
-      const donnees: unknown = JSON.parse(brut);
-      const lignes = Array.isArray(donnees) ? donnees : [];
-
-      return lignes
-        .map((ligne) => this.normaliser(ligne as Record<string, unknown>))
-        .filter((n): n is StoredNotification => n !== null);
-    } catch (erreur) {
-      // Fichier illisible ou corrompu : on repart a vide plutot que de bloquer
-      // le demarrage du service.
+  async onModuleInit(): Promise<void> {
+    if (!process.env.DATABASE_URL) {
       this.logger.error(
-        `Lecture impossible de ${this.fichier} : ${String(erreur)}`,
+        'DATABASE_URL manquante : les notifications ne peuvent pas être conservées.',
       );
-      return [];
+      return;
     }
-  }
-
-  /** Programme une ecriture (regroupee) de l'etat courant. */
-  enregistrer(notifications: StoredNotification[]): void {
-    this.enAttente = notifications;
-    if (this.minuterie) return;
-    this.minuterie = setTimeout(() => {
-      this.minuterie = null;
-      this.ecrire();
-    }, DELAI_ECRITURE_MS);
-    // Ne pas maintenir le processus en vie uniquement pour cette minuterie.
-    this.minuterie.unref?.();
-  }
-
-  /** Force l'ecriture immediate (arret du service). */
-  vider(): void {
-    if (this.minuterie) {
-      clearTimeout(this.minuterie);
-      this.minuterie = null;
-    }
-    this.ecrire();
-  }
-
-  private ecrire(): void {
-    const notifications = this.enAttente;
-    if (!notifications) return;
-    this.enAttente = null;
-
-    try {
-      mkdirSync(dirname(this.fichier), { recursive: true });
-      const temporaire = `${this.fichier}.tmp`;
-      writeFileSync(temporaire, JSON.stringify(notifications), 'utf8');
-      renameSync(temporaire, this.fichier);
-    } catch (erreur) {
-      this.logger.error(
-        `Ecriture impossible dans ${this.fichier} : ${String(erreur)}`,
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id uuid PRIMARY KEY,
+        destinataire text NOT NULL,
+        titre text NOT NULL,
+        message text NOT NULL,
+        type text NOT NULL DEFAULT 'info',
+        source text NOT NULL DEFAULT 'system',
+        donnees jsonb,
+        priorite text NOT NULL DEFAULT 'normal',
+        lu boolean NOT NULL DEFAULT false,
+        cree_le timestamptz NOT NULL DEFAULT now()
       );
+      CREATE INDEX IF NOT EXISTS notifications_destinataire_date
+        ON notifications (destinataire, cree_le DESC);
+      CREATE INDEX IF NOT EXISTS notifications_date ON notifications (cree_le DESC);
+      CREATE TABLE IF NOT EXISTS lectures (
+        notification_id uuid NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+        utilisateur text NOT NULL,
+        lu_le timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (notification_id, utilisateur)
+      );
+    `);
+    this.logger.log('Base des notifications prête.');
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.pool.end();
+  }
+
+  async inserer(n: StoredNotification): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO notifications (id, destinataire, titre, message, type, source, donnees, priorite, lu, cree_le)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        n.id,
+        n.userId,
+        n.title,
+        n.message,
+        n.type,
+        n.source,
+        n.data ?? null,
+        n.priority,
+        n.read,
+        n.createdAt,
+      ],
+    );
+  }
+
+  /** Notifications de ces destinataires, `read` résolu pour `lecteur` (plus récentes d'abord). */
+  async parDestinataires(
+    destinataires: string[],
+    lecteur?: string,
+  ): Promise<StoredNotification[]> {
+    const { rows } = await this.pool.query<Ligne>(
+      `SELECT n.id, n.destinataire, n.titre, n.message, n.type, n.source, n.donnees,
+              n.priorite, n.cree_le,
+              (n.lu OR EXISTS (SELECT 1 FROM lectures l
+                                WHERE l.notification_id = n.id AND l.utilisateur = $2)) AS lu
+         FROM notifications n
+        WHERE n.destinataire = ANY($1)
+        ORDER BY n.cree_le DESC
+        LIMIT ${LIMITE_LECTURE}`,
+      [destinataires, lecteur ?? ''],
+    );
+    return rows.map(versNotification);
+  }
+
+  /** Les plus récentes, tous destinataires confondus (réservé aux services). */
+  async recentes(): Promise<StoredNotification[]> {
+    const { rows } = await this.pool.query<Ligne>(
+      `SELECT * FROM notifications ORDER BY cree_le DESC LIMIT ${LIMITE_LECTURE}`,
+    );
+    return rows.map(versNotification);
+  }
+
+  async trouver(
+    id: string,
+    lecteur?: string,
+  ): Promise<StoredNotification | null> {
+    const { rows } = await this.pool.query<Ligne>(
+      `SELECT n.id, n.destinataire, n.titre, n.message, n.type, n.source, n.donnees,
+              n.priorite, n.cree_le,
+              (n.lu OR EXISTS (SELECT 1 FROM lectures l
+                                WHERE l.notification_id = n.id AND l.utilisateur = $2)) AS lu
+         FROM notifications n WHERE n.id = $1`,
+      [id, lecteur ?? ''],
+    );
+    return rows[0] ? versNotification(rows[0]) : null;
+  }
+
+  /**
+   * Accusés de lecture. Avec un utilisateur : accusé PERSONNEL (les collègues d'une
+   * notification diffusée gardent leur indice), et global s'il en est le destinataire
+   * unique. Sans utilisateur (appel d'un service) : lue pour tout le monde.
+   * Retourne le nombre de notifications existantes concernées.
+   */
+  async marquerLues(ids: string[], lecteur?: string): Promise<number> {
+    if (ids.length === 0) return 0;
+    const existantes = await this.pool.query<{ id: string }>(
+      `SELECT id FROM notifications WHERE id = ANY($1::uuid[])`,
+      [ids],
+    );
+    const trouvees = existantes.rows.map((r) => r.id);
+    if (trouvees.length === 0) return 0;
+    if (!lecteur) {
+      await this.pool.query(
+        `UPDATE notifications SET lu = true WHERE id = ANY($1::uuid[])`,
+        [trouvees],
+      );
+      return trouvees.length;
     }
+    await this.pool.query(
+      `INSERT INTO lectures (notification_id, utilisateur)
+       SELECT unnest($1::uuid[]), $2 ON CONFLICT DO NOTHING`,
+      [trouvees, lecteur],
+    );
+    await this.pool.query(
+      `UPDATE notifications SET lu = true
+        WHERE id = ANY($1::uuid[]) AND destinataire = $2`,
+      [trouvees, lecteur],
+    );
+    return trouvees.length;
   }
 
-  /** Reconstruit une notification depuis le JSON (dates + champs manquants). */
-  private normaliser(
-    ligne: Record<string, unknown>,
-  ): StoredNotification | null {
-    if (!ligne || typeof ligne.id !== 'string') return null;
-
-    const creation = new Date(String(ligne.createdAt ?? ''));
-    const readBy = Array.isArray(ligne.readBy)
-      ? (ligne.readBy as unknown[]).filter(
-          (valeur): valeur is string => typeof valeur === 'string',
-        )
-      : [];
-
-    return {
-      id: ligne.id,
-      userId: String(ligne.userId ?? ''),
-      title: String(ligne.title ?? ''),
-      message: String(ligne.message ?? ''),
-      type: String(ligne.type ?? 'info'),
-      source: String(ligne.source ?? 'system'),
-      data: (ligne.data as Record<string, any> | undefined) ?? undefined,
-      createdAt: Number.isNaN(creation.getTime()) ? new Date() : creation,
-      read: Boolean(ligne.read),
-      readBy,
-      priority: String(ligne.priority ?? 'normal'),
-    };
+  async supprimerDestinataire(destinataire: string): Promise<number> {
+    const r = await this.pool.query(
+      `DELETE FROM notifications WHERE destinataire = $1`,
+      [destinataire],
+    );
+    return r.rowCount ?? 0;
   }
+
+  /** Retire les notifications plus anciennes que `jours` (0 = tout conserver). */
+  async purger(jours: number): Promise<number> {
+    if (jours <= 0) return 0;
+    const r = await this.pool.query(
+      `DELETE FROM notifications WHERE cree_le < now() - make_interval(days => $1)`,
+      [jours],
+    );
+    return r.rowCount ?? 0;
+  }
+}
+
+function versNotification(l: Ligne): StoredNotification {
+  return {
+    id: l.id,
+    userId: l.destinataire,
+    title: l.titre,
+    message: l.message,
+    type: l.type,
+    source: l.source,
+    data: l.donnees ?? undefined,
+    priority: l.priorite,
+    createdAt: new Date(l.cree_le),
+    read: l.lu,
+  };
 }
