@@ -3,7 +3,7 @@ import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class CreateNotificationDto {
   @ApiProperty({
-    description: 'Identifiant de l\'utilisateur destinataire',
+    description: "Identifiant de l'utilisateur destinataire",
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @IsString()

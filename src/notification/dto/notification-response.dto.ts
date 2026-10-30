@@ -4,7 +4,7 @@ export class NotificationResponseDto {
   @ApiProperty({ description: 'Identifiant unique de la notification' })
   id: string;
 
-  @ApiProperty({ description: 'Identifiant de l\'utilisateur destinataire' })
+  @ApiProperty({ description: "Identifiant de l'utilisateur destinataire" })
   userId: string;
 
   @ApiProperty({ description: 'Titre de la notification' })
@@ -16,7 +16,10 @@ export class NotificationResponseDto {
   @ApiProperty({ description: 'Type de notification', example: 'info' })
   type: string;
 
-  @ApiProperty({ description: 'Service émetteur', example: 'service-consultation' })
+  @ApiProperty({
+    description: 'Service émetteur',
+    example: 'service-consultation',
+  })
   source: string;
 
   @ApiProperty({ description: 'Données supplémentaires', required: false })
@@ -28,6 +31,10 @@ export class NotificationResponseDto {
   @ApiProperty({ description: 'Notification lue', example: false })
   read: boolean;
 
-  @ApiProperty({ description: 'Priorité', enum: ['normal', 'urgent', 'critical'], default: 'normal' })
+  @ApiProperty({
+    description: 'Priorité',
+    enum: ['normal', 'urgent', 'critical'],
+    default: 'normal',
+  })
   priority: string;
 }

@@ -11,10 +11,7 @@ import { BroadcastNotificationDto } from './dto/broadcast-notification.dto';
 import { NotifyServiceDto } from './dto/notify-service.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
 import { NotificationGateway } from './notification.gateway';
-import {
-  NotificationStore,
-  StoredNotification,
-} from './notification.store';
+import { NotificationStore, StoredNotification } from './notification.store';
 
 /**
  * Duree de conservation des notifications (jours). Au-dela, elles sont purgees
@@ -313,7 +310,9 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     const { readBy, ...reste } = notification;
     return {
       ...reste,
-      read: userId ? notification.read || readBy.includes(userId) : notification.read,
+      read: userId
+        ? notification.read || readBy.includes(userId)
+        : notification.read,
     };
   }
 

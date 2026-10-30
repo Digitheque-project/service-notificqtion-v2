@@ -12,7 +12,7 @@ import { ArrayNotEmpty, IsArray, IsOptional, IsString } from 'class-validator';
  */
 export class MarkReadDto {
   @ApiPropertyOptional({
-    description: "Utilisateur qui accuse reception",
+    description: 'Utilisateur qui accuse reception',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @IsString()
@@ -33,7 +33,7 @@ export class MarkManyReadDto {
   ids: string[];
 
   @ApiPropertyOptional({
-    description: "Utilisateur qui accuse reception (accuse personnel)",
+    description: 'Utilisateur qui accuse reception (accuse personnel)',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @IsString()

@@ -135,7 +135,9 @@ export class NotificationStore {
   }
 
   /** Reconstruit une notification depuis le JSON (dates + champs manquants). */
-  private normaliser(ligne: Record<string, unknown>): StoredNotification | null {
+  private normaliser(
+    ligne: Record<string, unknown>,
+  ): StoredNotification | null {
     if (!ligne || typeof ligne.id !== 'string') return null;
 
     const creation = new Date(String(ligne.createdAt ?? ''));

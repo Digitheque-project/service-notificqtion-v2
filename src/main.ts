@@ -28,6 +28,8 @@ async function bootstrap() {
   const port = process.env.PORT ?? 3005;
   await app.listen(port);
 
-  logger.log(`Documentation Swagger : http://localhost:${port}/notification/api/docs`);
+  logger.log(
+    `Documentation Swagger : http://localhost:${port}/notification/api/docs`,
+  );
 }
 bootstrap();

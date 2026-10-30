@@ -12,7 +12,7 @@ export class NotifyServiceDto {
 
   @ApiProperty({
     description: 'Titre de la notification',
-    example: 'Nouvelle demande d\'hospitalisation',
+    example: "Nouvelle demande d'hospitalisation",
   })
   @IsString()
   @IsNotEmpty()
@@ -20,7 +20,8 @@ export class NotifyServiceDto {
 
   @ApiProperty({
     description: 'Contenu de la notification',
-    example: 'Une nouvelle demande pour le patient xxx arrive dans votre service.',
+    example:
+      'Une nouvelle demande pour le patient xxx arrive dans votre service.',
   })
   @IsString()
   @IsNotEmpty()
