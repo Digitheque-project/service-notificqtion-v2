@@ -49,6 +49,26 @@ describe('verifierJeton', () => {
     expect(id?.estService).toBe(true);
   });
 
+  it('reconnaît un jeton de service sans role SERVICE (identifiant non UUID, sans services)', () => {
+    const id = verifierJeton(
+      signer({ userId: 'service-orl-back', services: [], exp: dans(60) }),
+      SECRET,
+    );
+    expect(id?.estService).toBe(true);
+  });
+
+  it("un utilisateur (UUID) sans aucun service n'est pas un service", () => {
+    const id = verifierJeton(
+      signer({
+        userId: '0d0d23e6-0644-4c89-b767-14d8edcb6258',
+        services: [],
+        exp: dans(60),
+      }),
+      SECRET,
+    );
+    expect(id?.estService).toBe(false);
+  });
+
   it('refuse un jeton signé avec un autre secret', () => {
     expect(verifierJeton(signer(utilisateur, 'mauvais'), SECRET)).toBeNull();
   });

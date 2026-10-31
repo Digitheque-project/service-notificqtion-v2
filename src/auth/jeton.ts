@@ -18,6 +18,13 @@ export interface Identite {
   services: ServiceDuJeton[];
 }
 
+/**
+ * Les utilisateurs ont un identifiant UUID ; un jeton signé sans aucun service et dont
+ * l'identifiant n'est pas un UUID est celui d'un service de la plateforme (« service-orl-back »,
+ * « service-clinique »…), qu'il porte ou non la mention role: 'SERVICE'.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function extraireJeton(entete?: string | string[]): string | null {
   const valeur = Array.isArray(entete) ? entete[0] : entete;
   if (!valeur?.startsWith('Bearer ')) return null;
@@ -65,7 +72,9 @@ export function verifierJeton(jeton: string, secret: string): Identite | null {
       userId,
       name: payload.name,
       firstname: payload.firstname,
-      estService: payload.role === 'SERVICE' && services.length === 0,
+      estService:
+        services.length === 0 &&
+        (payload.role === 'SERVICE' || !UUID.test(userId)),
       services,
     };
   } catch {
